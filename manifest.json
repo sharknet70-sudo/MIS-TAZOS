@@ -1,0 +1,10 @@
+{
+  "name": "Mis Tazos",
+  "short_name": "Mis Tazos",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#cbd5e1",
+  "theme_color": "#d97706",
+  "orientation": "portrait",
+  "icons": []
+}
