@@ -280,6 +280,7 @@ body{background:var(--bg-app);display:flex;justify-content:center;align-items:fl
     <div class="header">
       <button class="btn-config" onclick="volverAHome()" title="Mis Colecciones">←</button>
       <span class="header-title" id="album-titulo">Colección</span>
+      <button class="btn-config" onclick="abrirFormularioColeccion(coleccionActualId)" title="Editar colección">✏️</button>
       <button class="btn-config" onclick="abrirEstadisticasColeccion()" title="Estadísticas">📊</button>
     </div>
     <div class="progreso-container">
@@ -365,6 +366,7 @@ body{background:var(--bg-app);display:flex;justify-content:center;align-items:fl
         <div class="crop-controls"><label>Zoom</label><button type="button" class="zoom-btn" data-target="zoomSlider" data-dir="-">−</button><input type="range" id="zoomSlider" min="100" max="250" step="0.1" value="100"><button type="button" class="zoom-btn" data-target="zoomSlider" data-dir="+">+</button></div>
       </div>
       <button class="btn-accion btn-guardar" id="btnGuardar">Guardar Tazo</button>
+      <button class="btn-accion btn-eliminar" id="btnEliminarTazo">🗑 Eliminar Tazo</button>
     </div>
   </div>
 
@@ -596,8 +598,7 @@ function abrirFormularioColeccion(id){
     const col=colecciones.find(c=>c.id===id);
     document.getElementById('coleccion-form-titulo').textContent='Editar Colección';
     document.getElementById('col-nombre').value=col.nombre;
-    document.getElementById('col-total').value=col.total;
-    document.getElementById('col-total').disabled=true; // evitar inconsistencias con tazos ya creados
+    document.getElementById('col-total').value=tazos.filter(t=>t.coleccionId===id).length;
     formaSeleccionada=col.forma;
     if(col.imgPortada){
       cropStates['Portada'].originalSrc=col.imgPortada;
@@ -620,7 +621,8 @@ document.getElementById('btnGuardarColeccion').onclick=async()=>{
   const nombre=document.getElementById('col-nombre').value.trim();
   const total=parseInt(document.getElementById('col-total').value);
   if(!nombre){alert('Por favor ingresa el nombre de la colección.');return;}
-  if(!editColeccionId&&(!total||total<1)){alert('Por favor ingresa la cantidad total de tazos.');return;}
+  if(!total||total<1){alert('Por favor ingresa la cantidad total de tazos.');return;}
+  if(total>500){alert('La cantidad máxima es de 500 tazos.');return;}
 
   const csP=cropStates['Portada'];
   let imgPortada=csP.originalSrc||'';
@@ -628,10 +630,39 @@ document.getElementById('btnGuardarColeccion').onclick=async()=>{
 
   if(editColeccionId){
     const col=colecciones.find(c=>c.id===editColeccionId);
+    const actuales=tazos.filter(t=>t.coleccionId===editColeccionId);
+    if(total<actuales.length){
+      const aQuitar=[...actuales].sort((a,b)=>b.numero-a.numero).slice(0,actuales.length-total);
+      const conseguidos=aQuitar.filter(t=>t.tengo).length;
+      let msg=`Se eliminarán ${aQuitar.length} tazos (los de mayor número).`;
+      if(conseguidos)msg+=` ${conseguidos} de ellos están marcados como conseguidos y se perderán sus fotos.`;
+      msg+=' Esta acción no se puede deshacer. ¿Desea continuar?';
+      if(!confirm(msg))return;
+      const idsQuitar=new Set(aQuitar.map(t=>t.id));
+      for(const id of idsQuitar){await dbDelete('tazos',id);await dbDelete('fotos',id);}
+      tazos=tazos.filter(t=>!idsQuitar.has(t.id));
+    } else if(total>actuales.length){
+      let n=Math.max(0,...actuales.map(t=>t.numero));
+      const ids=new Set(actuales.map(t=>t.id));
+      for(let i=actuales.length;i<total;i++){
+        n++;
+        let nid=editColeccionId+'_'+n;
+        while(ids.has(nid)){n++;nid=editColeccionId+'_'+n;}
+        ids.add(nid);
+        const tz={id:nid,coleccionId:editColeccionId,numero:n,tengo:false,descripcion:'',imgBase64:''};
+        tazos.push(tz);
+        await dbPut('tazos',tz);
+      }
+    }
     col.nombre=nombre;
     col.forma=formaSeleccionada;
+    col.total=total;
     if(imgPortada)col.imgPortada=imgPortada;
     await dbPut('colecciones',col);
+    if(coleccionActualId===editColeccionId){
+      document.getElementById('album-titulo').textContent=col.nombre;
+      renderAlbum();
+    }
   } else {
     const colId='col_'+Date.now();
     const col={id:colId,nombre,total,forma:formaSeleccionada,imgPortada};
@@ -650,14 +681,15 @@ document.getElementById('btnGuardarColeccion').onclick=async()=>{
 
 document.getElementById('btnEliminarColeccion').onclick=async()=>{
   const col=colecciones.find(c=>c.id===editColeccionId);
-  if(confirm(`¿Eliminar la colección "${col.nombre}" y todos sus ${col.total} tazos? Esta acción no se puede deshacer.`)){
+  const cant=tazos.filter(t=>t.coleccionId===editColeccionId).length;
+  if(confirm(`¿Eliminar la colección "${col.nombre}" y todos sus ${cant} tazos? Esta acción no se puede deshacer.`)){
     const idsTazos=tazos.filter(t=>t.coleccionId===editColeccionId).map(t=>t.id);
     for(const id of idsTazos){await dbDelete('tazos',id);await dbDelete('fotos',id);}
     tazos=tazos.filter(t=>t.coleccionId!==editColeccionId);
     colecciones=colecciones.filter(c=>c.id!==editColeccionId);
     await dbDelete('colecciones',editColeccionId);
     cerrarModal('modal-coleccion');
-    renderHome();
+    volverAHome();
   }
 };
 
@@ -826,6 +858,18 @@ document.getElementById('btnGuardar').onclick=async()=>{
     await dbPut('tazos',t);
   }
   cerrarModal('modal-formulario');renderAlbum();
+};
+
+document.getElementById('btnEliminarTazo').onclick=async()=>{
+  const t=tazos.find(x=>x.id===editTazoId);
+  if(!t)return;
+  if(!confirm(`¿Eliminar el tazo N° ${t.numero}? Se perderán también sus fotos. Esta acción no se puede deshacer.`))return;
+  await dbDelete('tazos',t.id);await dbDelete('fotos',t.id);
+  tazos=tazos.filter(x=>x.id!==t.id);
+  const col=colecciones.find(c=>c.id===t.coleccionId);
+  if(col){col.total=tazos.filter(x=>x.coleccionId===col.id).length;await dbPut('colecciones',col);}
+  editTazoId=null;
+  cerrarModal('modal-formulario');renderAlbum();renderHome();
 };
 
 // ── FORMULARIO FÍSICA ─────────────────────────────────────────────────────────
