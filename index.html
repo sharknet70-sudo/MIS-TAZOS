@@ -173,6 +173,13 @@ body{background:var(--bg-app);display:flex;justify-content:center;align-items:fl
 .crop-wrap{position:relative;width:100%;overflow:hidden;border-radius:8px;border:1px solid var(--border2);cursor:grab;background:#111;touch-action:none;}
 .crop-wrap.grabbing{cursor:grabbing;}
 .crop-wrap img{position:absolute;transform-origin:0 0;will-change:transform;image-rendering:high-quality;}
+.rot-val{flex-shrink:0;min-width:42px;text-align:center;font-size:var(--font-size-xs);color:var(--text-secondary);}
+.zoom-btn.rot-reset{width:auto;padding:0 9px;border-radius:15px;font-size:12px;}
+.tazo-aro{width:100%;}
+.tazo-card.conseguido .tazo-aro{filter:drop-shadow(0 0 2px #22c55e) drop-shadow(0 0 4px rgba(34,197,94,0.85));}
+.tazo-card.conseguido .tazo-label{color:#16a34a;}
+.tazo-shape.bloqueada img{filter:grayscale(1) brightness(0.9);opacity:0.4;}
+.crop-silueta{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:3;}
 .crop-hint{font-size:var(--font-size-xs);color:var(--text-secondary);text-align:center;margin-bottom:4px;}
 .crop-controls{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
 .crop-controls label{font-size:var(--font-size-xs);color:var(--text-secondary);white-space:nowrap;}
@@ -329,8 +336,9 @@ body{background:var(--bg-app);display:flex;justify-content:center;align-items:fl
       <div class="upload-area" id="uploadPortada">📂 Subir imagen de portada</div>
       <div class="crop-outer" id="cropOuterPortada">
         <div class="crop-wrap" id="cropWrapPortada" style="aspect-ratio:1/1"><img id="cropImgPortada" src="" alt=""></div>
-        <p class="crop-hint">Arrastra para reencuadrar</p>
+        <p class="crop-hint">La imagen se ajusta completa al cuadro. Arrastra para mover; con dos dedos puedes hacer zoom y girar.</p>
         <div class="crop-controls"><label>Zoom</label><button type="button" class="zoom-btn" data-target="zoomPortada" data-dir="-">−</button><input type="range" id="zoomPortada" min="100" max="250" step="0.1" value="100"><button type="button" class="zoom-btn" data-target="zoomPortada" data-dir="+">+</button></div>
+        <div class="crop-controls"><label>Girar</label><button type="button" class="zoom-btn rot-btn" data-target="rotPortada" data-dir="L" title="Girar 90° a la izquierda">⟲</button><input type="range" id="rotPortada" min="-45" max="45" step="0.1" value="0"><button type="button" class="zoom-btn rot-btn" data-target="rotPortada" data-dir="R" title="Girar 90° a la derecha">⟳</button><span class="rot-val" id="rotPortadaVal">0°</span><button type="button" class="zoom-btn rot-btn rot-reset" data-target="rotPortada" data-dir="0" title="Enderezar (volver a 0°)">0°</button></div>
       </div>
 
       <button class="btn-accion btn-guardar" id="btnGuardarColeccion">Guardar Colección</button>
@@ -362,8 +370,9 @@ body{background:var(--bg-app);display:flex;justify-content:center;align-items:fl
       <div class="upload-area" id="uploadArea">📂 Subir foto desde tu dispositivo</div>
       <div class="crop-outer" id="cropOuter">
         <div class="crop-wrap" id="cropWrap" style="aspect-ratio:1/1"><img id="cropImg" src="" alt=""></div>
-        <p class="crop-hint">Arrastra para reencuadrar</p>
+        <p class="crop-hint" id="cropHintTazo">Arrastra para reencuadrar</p>
         <div class="crop-controls"><label>Zoom</label><button type="button" class="zoom-btn" data-target="zoomSlider" data-dir="-">−</button><input type="range" id="zoomSlider" min="100" max="250" step="0.1" value="100"><button type="button" class="zoom-btn" data-target="zoomSlider" data-dir="+">+</button></div>
+        <div class="crop-controls"><label>Girar</label><button type="button" class="zoom-btn rot-btn" data-target="rotTazo" data-dir="L" title="Girar 90° a la izquierda">⟲</button><input type="range" id="rotTazo" min="-45" max="45" step="0.1" value="0"><button type="button" class="zoom-btn rot-btn" data-target="rotTazo" data-dir="R" title="Girar 90° a la derecha">⟳</button><span class="rot-val" id="rotTazoVal">0°</span><button type="button" class="zoom-btn rot-btn rot-reset" data-target="rotTazo" data-dir="0" title="Enderezar (volver a 0°)">0°</button></div>
       </div>
       <button class="btn-accion btn-guardar" id="btnGuardar">Guardar Tazo</button>
       <button class="btn-accion btn-eliminar" id="btnEliminarTazo">🗑 Eliminar Tazo</button>
@@ -381,15 +390,17 @@ body{background:var(--bg-app);display:flex;justify-content:center;align-items:fl
       <div class="upload-area" id="uploadFront">📂 Subir foto del frente</div>
       <div class="crop-outer" id="cropOuterFront">
         <div class="crop-wrap" id="cropWrapFront" style="aspect-ratio:1/1"><img id="cropImgFront" src="" alt=""></div>
-        <p class="crop-hint">Arrastra para reencuadrar</p>
+        <p class="crop-hint">Arrastra para mover. Con dos dedos puedes hacer zoom y girar.</p>
         <div class="crop-controls"><label>Zoom</label><button type="button" class="zoom-btn" data-target="zoomFront" data-dir="-">−</button><input type="range" id="zoomFront" min="100" max="250" step="0.1" value="100"><button type="button" class="zoom-btn" data-target="zoomFront" data-dir="+">+</button></div>
+        <div class="crop-controls"><label>Girar</label><button type="button" class="zoom-btn rot-btn" data-target="rotFront" data-dir="L" title="Girar 90° a la izquierda">⟲</button><input type="range" id="rotFront" min="-45" max="45" step="0.1" value="0"><button type="button" class="zoom-btn rot-btn" data-target="rotFront" data-dir="R" title="Girar 90° a la derecha">⟳</button><span class="rot-val" id="rotFrontVal">0°</span><button type="button" class="zoom-btn rot-btn rot-reset" data-target="rotFront" data-dir="0" title="Enderezar (volver a 0°)">0°</button></div>
       </div>
       <p class="seccion-titulo">📸 Reverso del Tazo</p>
       <div class="upload-area" id="uploadBack">📂 Subir foto del reverso</div>
       <div class="crop-outer" id="cropOuterBack">
         <div class="crop-wrap" id="cropWrapBack" style="aspect-ratio:1/1"><img id="cropImgBack" src="" alt=""></div>
-        <p class="crop-hint">Arrastra para reencuadrar</p>
+        <p class="crop-hint">Arrastra para mover. Con dos dedos puedes hacer zoom y girar.</p>
         <div class="crop-controls"><label>Zoom</label><button type="button" class="zoom-btn" data-target="zoomBack" data-dir="-">−</button><input type="range" id="zoomBack" min="100" max="250" step="0.1" value="100"><button type="button" class="zoom-btn" data-target="zoomBack" data-dir="+">+</button></div>
+        <div class="crop-controls"><label>Girar</label><button type="button" class="zoom-btn rot-btn" data-target="rotBack" data-dir="L" title="Girar 90° a la izquierda">⟲</button><input type="range" id="rotBack" min="-45" max="45" step="0.1" value="0"><button type="button" class="zoom-btn rot-btn" data-target="rotBack" data-dir="R" title="Girar 90° a la derecha">⟳</button><span class="rot-val" id="rotBackVal">0°</span><button type="button" class="zoom-btn rot-btn rot-reset" data-target="rotBack" data-dir="0" title="Enderezar (volver a 0°)">0°</button></div>
       </div>
       <button class="btn-accion btn-guardar" id="btnGuardarFisica">💾 Guardar Tazo Físico</button>
     </div>
@@ -728,7 +739,7 @@ function renderAlbum(){
   const claseShape=claseForma(col.forma);
   for(const t of lista){
     const el=document.createElement('div');
-    el.className='tazo-card';
+    el.className='tazo-card'+(t.tengo?' conseguido':'');
     el.onclick=()=>verDetalle(t.id);
     const icono=t.tengo
       ?`<div class="tazo-check tengo">✔</div>`
@@ -739,7 +750,7 @@ function renderAlbum(){
     } else {
       interior=`<div class="tazo-numero-bg"><span>#${t.numero}</span></div>`;
     }
-    el.innerHTML=`<div class="tazo-shape ${claseShape}${t.tengo?'':' bloqueada'}">${interior}${icono}</div><div class="tazo-label">N° ${t.numero}</div>`;
+    el.innerHTML=`<div class="tazo-aro"><div class="tazo-shape ${claseShape}${t.tengo?'':' bloqueada'}">${interior}${icono}</div></div><div class="tazo-label">N° ${t.numero}</div>`;
     grid.appendChild(el);
   }
 }
@@ -830,13 +841,16 @@ function setLado(lado){
 }
 
 // ── FORMULARIO TAZO ───────────────────────────────────────────────────────────
-function resetCrop(s){cropStates[s]={nativeW:0,nativeH:0,ox:0,oy:0,scale:1,minScale:1,originalSrc:'',dragging:false};}
+function resetCrop(s){cropStates[s]={nativeW:0,nativeH:0,cx:0,cy:0,baseX:1,baseY:1,zf:1,rot90:0,fine:0,originalSrc:'',dragging:false};}
 
 function activarEdicion(t){
   editTazoId=t.id;resetCrop('');
   document.getElementById('form-titulo-nav').textContent='Editar Tazo N° '+t.numero;
   document.getElementById('form-numero').value=t.numero;
   document.getElementById('form-desc').value=t.descripcion||'';
+  const colT=colecciones.find(c=>c.id===t.coleccionId);
+  ponerSilueta('cropWrap',colT?colT.forma:'circulo');
+  document.getElementById('cropHintTazo').textContent='Arrastra para mover; con dos dedos haz zoom y gira. Lo oscuro quedará fuera del tazo.';
   if(t.imgBase64){cropStates[''].originalSrc=t.imgBase64;document.getElementById('uploadArea').textContent='✓ Imagen cargada';setTimeout(()=>initCrop(t.imgBase64,'','cropWrap','cropOuter','zoomSlider'),60);}
   else{document.getElementById('uploadArea').innerHTML='📂 Subir foto desde tu dispositivo';document.getElementById('cropOuter').style.display='none';}
   cerrarModal('modal-detalle');document.getElementById('modal-formulario').classList.add('activa');
@@ -901,6 +915,23 @@ document.getElementById('btnGuardarFisica').onclick=async()=>{
 };
 
 // ── CROP ENGINE ───────────────────────────────────────────────────────────────
+// Modo de ajuste inicial por editor: 'stretch' = la imagen se estira para llenar todo el cuadro;
+// cualquier otro (por defecto) = 'cover' (llena el cuadro sin deformar, recortando lo que sobra).
+const CROP_MODO={Portada:'stretch'};
+const ZOOM_ID={'':'zoomSlider',Front:'zoomFront',Back:'zoomBack',Portada:'zoomPortada'};
+const ROT_ID={'':'rotTazo',Front:'rotFront',Back:'rotBack',Portada:'rotPortada'};
+const CROP_WRAP={'':'cropWrap',Front:'cropWrapFront',Back:'cropWrapBack',Portada:'cropWrapPortada'};
+
+// Ángulo total en radianes (giros de 90° + inclinación fina)
+function cropThetaRad(cs){return (cs.rot90+cs.fine)*Math.PI/180;}
+// Zoom mínimo para que la imagen girada siga cubriendo todo el cuadro (sin esquinas vacías)
+function zMinimo(cs,ww,wh){
+  const th=cropThetaRad(cs),co=Math.abs(Math.cos(th)),si=Math.abs(Math.sin(th));
+  const a=ww/2,b=wh/2;
+  return Math.max(2*(a*co+b*si)/(cs.nativeW*cs.baseX),2*(a*si+b*co)/(cs.nativeH*cs.baseY));
+}
+function zEfectivo(cs,ww,wh){return Math.max(cs.zf,zMinimo(cs,ww,wh)+1e-9);}
+
 function initCrop(src,suffix,wrapId,outerId,sliderId){
   document.getElementById(outerId).style.display='block';
   const img=document.getElementById('cropImg'+(suffix||''));
@@ -910,12 +941,13 @@ function initCrop(src,suffix,wrapId,outerId,sliderId){
     cs.nativeW=img.naturalWidth;cs.nativeH=img.naturalHeight;
     const wrap=document.getElementById(wrapId);
     const ww=wrap.offsetWidth,wh=wrap.offsetHeight;
-    cs.minScale=Math.max(ww/cs.nativeW,wh/cs.nativeH);cs.scale=cs.minScale;
-    cs.ox=(ww-cs.nativeW*cs.scale)/2;cs.oy=(wh-cs.nativeH*cs.scale)/2;
-    const sl=document.getElementById(sliderId);
-    const minVal=Math.round(cs.minScale*1000)/10;
-    const maxVal=Math.min(minVal*2.5,250);
-    sl.min=minVal;sl.max=maxVal;sl.step=0.1;sl.value=minVal;
+    if(CROP_MODO[suffix||'']==='stretch'){
+      cs.baseX=ww/cs.nativeW;cs.baseY=wh/cs.nativeH;
+    } else {
+      cs.baseX=cs.baseY=Math.max(ww/cs.nativeW,wh/cs.nativeH);
+    }
+    cs.zf=1;cs.rot90=0;cs.fine=0;
+    cs.cx=ww/2;cs.cy=wh/2;
     applyTransform(suffix||'',wrapId);
   };
 }
@@ -925,22 +957,68 @@ function applyTransform(suffix,wrapId){
   const img=document.getElementById('cropImg'+(suffix||''));
   const wrap=document.getElementById(wrapId);
   const ww=wrap.offsetWidth,wh=wrap.offsetHeight;
-  const sw=cs.nativeW*cs.scale,sh=cs.nativeH*cs.scale;
-  cs.ox=Math.min(0,Math.max(cs.ox,ww-sw));cs.oy=Math.min(0,Math.max(cs.oy,wh-sh));
-  img.style.width=sw+'px';img.style.height=sh+'px';img.style.left=cs.ox+'px';img.style.top=cs.oy+'px';
+  const z=zEfectivo(cs,ww,wh);
+  const sw=cs.nativeW*cs.baseX*z,sh=cs.nativeH*cs.baseY*z;
+  const th=cropThetaRad(cs),co=Math.cos(th),si=Math.sin(th);
+  const a=ww/2,b=wh/2;
+  // límites para que el cuadro quede siempre cubierto por la imagen girada
+  const mx=Math.max(0,sw/2-(a*Math.abs(co)+b*Math.abs(si)));
+  const my=Math.max(0,sh/2-(a*Math.abs(si)+b*Math.abs(co)));
+  let dx=a-cs.cx,dy=b-cs.cy;
+  let ux=dx*co+dy*si,uy=-dx*si+dy*co;
+  ux=Math.min(mx,Math.max(-mx,ux));uy=Math.min(my,Math.max(-my,uy));
+  dx=ux*co-uy*si;dy=ux*si+uy*co;
+  cs.cx=a-dx;cs.cy=b-dy;
+  img.style.width=sw+'px';img.style.height=sh+'px';
+  img.style.left=(cs.cx-sw/2)+'px';img.style.top=(cs.cy-sh/2)+'px';
+  img.style.transformOrigin='50% 50%';
+  img.style.transform='rotate('+(cs.rot90+cs.fine)+'deg)';
+  // sincronizar controles
+  const zs=document.getElementById(ZOOM_ID[suffix]);
+  if(zs){const mn=Math.ceil(zMinimo(cs,ww,wh)*1000-1e-6)/10;zs.min=mn;zs.max=Math.max(250,Math.ceil(mn*1.8));zs.step=0.1;zs.value=Math.round(z*1000)/10;}
+  const rs=document.getElementById(ROT_ID[suffix]);
+  if(rs){rs.value=cs.fine;}
+  const rv=document.getElementById((ROT_ID[suffix]||'')+'Val');
+  if(rv){rv.textContent=(Math.round((cs.rot90+cs.fine)*10)/10)+'°';}
+}
+
+// Cambia zoom y/o ángulo manteniendo el centro del cuadro como pivote
+function cambiarVista(suffix,wrapId,nzf,nth){
+  const cs=cropStates[suffix];if(!cs||!cs.nativeW)return;
+  const wrap=document.getElementById(wrapId);const ww=wrap.offsetWidth,wh=wrap.offsetHeight;
+  const oldZ=zEfectivo(cs,ww,wh);
+  const oldTh=cs.rot90+cs.fine;
+  if(nth!==undefined){
+    const th=((nth+180)%360+360)%360-180;
+    const r90=Math.round(th/90)*90;
+    cs.rot90=r90;cs.fine=th-r90;
+  }
+  if(nzf!==undefined)cs.zf=nzf;
+  const newZ=zEfectivo(cs,ww,wh);
+  const dth=(cs.rot90+cs.fine-oldTh)*Math.PI/180;
+  const dx=cs.cx-ww/2,dy=cs.cy-wh/2,k=newZ/oldZ;
+  cs.cx=ww/2+(dx*Math.cos(dth)-dy*Math.sin(dth))*k;
+  cs.cy=wh/2+(dx*Math.sin(dth)+dy*Math.cos(dth))*k;
+  applyTransform(suffix,wrapId);
 }
 
 function doCrop(wrapId,cs){
   const wrap=document.getElementById(wrapId);
   const ww=wrap.offsetWidth,wh=wrap.offsetHeight;
-  const srcX=(-cs.ox)/cs.scale,srcY=(-cs.oy)/cs.scale,srcW=ww/cs.scale,srcH=wh/cs.scale;
+  const z=zEfectivo(cs,ww,wh);
+  const sw=cs.nativeW*cs.baseX*z,sh=cs.nativeH*cs.baseY*z;
   const canvas=document.getElementById('cropCanvas');canvas.width=600;canvas.height=600;
   const ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
   return new Promise(resolve=>{
     const ni=new Image();
     ni.onload=()=>{
+      ctx.setTransform(1,0,0,1,0,0);
       ctx.clearRect(0,0,600,600);
-      ctx.drawImage(ni,srcX,srcY,srcW,srcH,0,0,600,600);
+      ctx.setTransform(600/ww,0,0,600/wh,0,0);
+      ctx.translate(cs.cx,cs.cy);
+      ctx.rotate(cropThetaRad(cs));
+      ctx.drawImage(ni,-sw/2,-sh/2,sw,sh);
+      ctx.setTransform(1,0,0,1,0,0);
       resolve(canvas.toDataURL('image/jpeg',0.95));
     };
     ni.src=cs.originalSrc;
@@ -948,49 +1026,113 @@ function doCrop(wrapId,cs){
   });
 }
 
-function setupDrag(pantallaId,getCropInfo){
-  const panel=document.getElementById(pantallaId);let active=null;
-  panel.addEventListener('mousedown',e=>{const info=getCropInfo(e.target);if(!info)return;active=info;info.cs.dragging=true;info.cs.startX=e.clientX;info.cs.startY=e.clientY;info.cs.startOx=info.cs.ox;info.cs.startOy=info.cs.oy;document.getElementById(info.wrapId).classList.add('grabbing');e.preventDefault();});
-  panel.addEventListener('mousemove',e=>{if(!active||!active.cs.dragging)return;active.cs.ox=active.cs.startOx+(e.clientX-active.cs.startX);active.cs.oy=active.cs.startOy+(e.clientY-active.cs.startY);applyTransform(active.suffix,active.wrapId);});
-  panel.addEventListener('mouseup',()=>{if(active){active.cs.dragging=false;document.getElementById(active.wrapId)?.classList.remove('grabbing');active=null;}});
-  panel.addEventListener('touchstart',e=>{const info=getCropInfo(e.target);if(!info)return;active=info;const t=e.touches[0];info.cs.dragging=true;info.cs.startX=t.clientX;info.cs.startY=t.clientY;info.cs.startOx=info.cs.ox;info.cs.startOy=info.cs.oy;e.preventDefault();},{passive:false});
-  panel.addEventListener('touchmove',e=>{if(!active||!active.cs.dragging)return;const t=e.touches[0];active.cs.ox=active.cs.startOx+(t.clientX-active.cs.startX);active.cs.oy=active.cs.startOy+(t.clientY-active.cs.startY);applyTransform(active.suffix,active.wrapId);e.preventDefault();},{passive:false});
-  panel.addEventListener('touchend',()=>{if(active){active.cs.dragging=false;active=null;}});
-  panel.addEventListener('input',e=>{
-    const info=zoomInfoFromId(e.target.id);
-    if(!info)return;
-    applyZoom(info,parseFloat(e.target.value)/100);
-  });
-  panel.addEventListener('click',e=>{
-    const btn=e.target.closest('.zoom-btn');
-    if(!btn)return;
-    const info=zoomInfoFromId(btn.dataset.target);
-    if(!info)return;
-    const cs=cropStates[info.suffix];if(!cs||!cs.nativeW)return;
-    const slider=document.getElementById(btn.dataset.target);
-    const step=(parseFloat(slider.step)||0.1)/100;
-    const dir=btn.dataset.dir==='+'?1:-1;
-    const ns=Math.min(Math.max(cs.scale+dir*step,parseFloat(slider.min)/100),parseFloat(slider.max)/100);
-    slider.value=Math.round(ns*1000)/10;
-    applyZoom(info,ns);
-  });
+// ── SILUETA DE LA FORMA SOBRE EL RECUADRO DE RECORTE (tazo del catálogo) ──────
+const SILUETAS={
+  circulo:  'M50 0A50 50 0 1 1 50 100A50 50 0 1 1 50 0Z',
+  cuadrado: 'M8 0H92A8 8 0 0 1 100 8V92A8 8 0 0 1 92 100H8A8 8 0 0 1 0 92V8A8 8 0 0 1 8 0Z',
+  hexagono: 'M25 0L75 0L100 50L75 100L25 100L0 50Z',
+  octagono: 'M30 0L70 0L100 30L100 70L70 100L30 100L0 70L0 30Z',
+  rombo:    'M50 0L100 50L50 100L0 50Z',
+  escudo:   'M0 0L100 0L100 70L50 100L0 70Z'
+};
+function ponerSilueta(wrapId,formaId){
+  const wrap=document.getElementById(wrapId);if(!wrap)return;
+  const viejo=wrap.querySelector('.crop-silueta');if(viejo)viejo.remove();
+  const d=SILUETAS[formaId]||SILUETAS.circulo;
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('class','crop-silueta');
+  svg.setAttribute('viewBox','0 0 100 100');
+  svg.setAttribute('preserveAspectRatio','none');
+  svg.innerHTML='<path fill-rule="evenodd" fill="rgba(0,0,0,0.6)" d="M0 0H100V100H0Z '+d+'"/>'
+    +'<path fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="0.8" vector-effect="non-scaling-stroke" d="'+d+'"/>';
+  wrap.appendChild(svg);
 }
 
-function zoomInfoFromId(id){
-  if(id==='zoomSlider')return{suffix:'',wrapId:'cropWrap'};
-  if(id==='zoomFront')return{suffix:'Front',wrapId:'cropWrapFront'};
-  if(id==='zoomBack')return{suffix:'Back',wrapId:'cropWrapBack'};
-  if(id==='zoomPortada')return{suffix:'Portada',wrapId:'cropWrapPortada'};
+function infoFromId(id){
+  for(const suf of Object.keys(ZOOM_ID)){
+    if(ZOOM_ID[suf]===id)return{suffix:suf,wrapId:CROP_WRAP[suf],tipo:'zoom'};
+    if(ROT_ID[suf]===id)return{suffix:suf,wrapId:CROP_WRAP[suf],tipo:'rot'};
+  }
   return null;
 }
 
-function applyZoom(info,ns){
-  const cs=cropStates[info.suffix];if(!cs||!cs.nativeW)return;
-  const wrap=document.getElementById(info.wrapId);const ww=wrap.offsetWidth,wh=wrap.offsetHeight;
-  const osw=cs.nativeW*cs.scale,osh=cs.nativeH*cs.scale;
-  const nsw=cs.nativeW*ns,nsh=cs.nativeH*ns;
-  cs.ox=cs.ox-(nsw-osw)*(((ww/2)-cs.ox)/osw);cs.oy=cs.oy-(nsh-osh)*(((wh/2)-cs.oy)/osh);
-  cs.scale=ns;applyTransform(info.suffix,info.wrapId);
+function setupDrag(pantallaId,getCropInfo){
+  const panel=document.getElementById(pantallaId);let active=null;
+  const iniciarArrastre=(info,x,y)=>{info.cs.dragging=true;info.cs.startX=x;info.cs.startY=y;info.cs.startCx=info.cs.cx;info.cs.startCy=info.cs.cy;};
+  const mover=(x,y)=>{const cs=active.cs;cs.cx=cs.startCx+(x-cs.startX);cs.cy=cs.startCy+(y-cs.startY);applyTransform(active.suffix,active.wrapId);};
+  // Ratón
+  panel.addEventListener('mousedown',e=>{const info=getCropInfo(e.target);if(!info)return;active=info;active.g=null;iniciarArrastre(info,e.clientX,e.clientY);document.getElementById(info.wrapId).classList.add('grabbing');e.preventDefault();});
+  panel.addEventListener('mousemove',e=>{if(!active||!active.cs.dragging)return;mover(e.clientX,e.clientY);});
+  panel.addEventListener('mouseup',()=>{if(active){active.cs.dragging=false;document.getElementById(active.wrapId)?.classList.remove('grabbing');active=null;}});
+  // Táctil: 1 dedo mueve; 2 dedos hacen zoom y giran
+  panel.addEventListener('touchstart',e=>{
+    if(active&&e.touches.length>=2){
+      const cs=active.cs,a=e.touches[0],b=e.touches[1];
+      const wrap=document.getElementById(active.wrapId);
+      cs.dragging=false;
+      active.g={d0:Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY)||1,a0:Math.atan2(b.clientY-a.clientY,b.clientX-a.clientX)*180/Math.PI,zf0:zEfectivo(cs,wrap.offsetWidth,wrap.offsetHeight),th0:cs.rot90+cs.fine};
+      e.preventDefault();return;
+    }
+    const info=getCropInfo(e.target);if(!info)return;
+    active=info;active.g=null;const t=e.touches[0];
+    iniciarArrastre(info,t.clientX,t.clientY);
+    e.preventDefault();
+  },{passive:false});
+  panel.addEventListener('touchmove',e=>{
+    if(!active)return;
+    if(active.g&&e.touches.length>=2){
+      const a=e.touches[0],b=e.touches[1];
+      const d=Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY)||1;
+      const ang=Math.atan2(b.clientY-a.clientY,b.clientX-a.clientX)*180/Math.PI;
+      let dAng=ang-active.g.a0;if(dAng>180)dAng-=360;if(dAng<-180)dAng+=360;
+      cambiarVista(active.suffix,active.wrapId,active.g.zf0*d/active.g.d0,active.g.th0+dAng);
+      e.preventDefault();return;
+    }
+    if(!active.cs.dragging)return;
+    const t=e.touches[0];mover(t.clientX,t.clientY);e.preventDefault();
+  },{passive:false});
+  const finTouch=e=>{
+    if(!active)return;
+    if(active.g){
+      active.g=null;
+      if(e.touches&&e.touches.length===1){const t=e.touches[0];iniciarArrastre(active,t.clientX,t.clientY);return;}
+    }
+    active.cs.dragging=false;active=null;
+  };
+  panel.addEventListener('touchend',finTouch);
+  panel.addEventListener('touchcancel',finTouch);
+  // Controles: deslizadores
+  panel.addEventListener('input',e=>{
+    const info=infoFromId(e.target.id);
+    if(!info)return;
+    const cs=cropStates[info.suffix];if(!cs||!cs.nativeW)return;
+    const v=parseFloat(e.target.value);
+    if(info.tipo==='zoom')cambiarVista(info.suffix,info.wrapId,v/100);
+    else cambiarVista(info.suffix,info.wrapId,undefined,cs.rot90+v);
+  });
+  // Controles: botones
+  panel.addEventListener('click',e=>{
+    const rb=e.target.closest('.rot-btn');
+    if(rb){
+      const info=infoFromId(rb.dataset.target);if(!info)return;
+      const cs=cropStates[info.suffix];if(!cs||!cs.nativeW)return;
+      const th=cs.rot90+cs.fine;
+      const nth=rb.dataset.dir==='L'?th-90:(rb.dataset.dir==='R'?th+90:0);
+      cambiarVista(info.suffix,info.wrapId,undefined,nth);
+      return;
+    }
+    const btn=e.target.closest('.zoom-btn');
+    if(!btn)return;
+    const info=infoFromId(btn.dataset.target);
+    if(!info)return;
+    const cs=cropStates[info.suffix];if(!cs||!cs.nativeW)return;
+    const wrap=document.getElementById(info.wrapId);
+    const slider=document.getElementById(btn.dataset.target);
+    const step=(parseFloat(slider.step)||0.1)/100;
+    const dir=btn.dataset.dir==='+'?1:-1;
+    const ns=Math.min(Math.max(zEfectivo(cs,wrap.offsetWidth,wrap.offsetHeight)+dir*step,parseFloat(slider.min)/100),parseFloat(slider.max)/100);
+    cambiarVista(info.suffix,info.wrapId,ns);
+  });
 }
 
 setupDrag('modal-formulario',t=>{if(document.getElementById('cropWrap')?.contains(t))return{suffix:'',wrapId:'cropWrap',cs:cropStates['']};return null;});
