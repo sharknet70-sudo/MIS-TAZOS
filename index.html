@@ -940,7 +940,7 @@ function initCrop(src,suffix,wrapId,outerId,sliderId){
     const cs=cropStates[suffix||''];
     cs.nativeW=img.naturalWidth;cs.nativeH=img.naturalHeight;
     const wrap=document.getElementById(wrapId);
-    const ww=wrap.offsetWidth,wh=wrap.offsetHeight;
+    const ww=wrap.clientWidth,wh=wrap.clientHeight;
     if(CROP_MODO[suffix||'']==='stretch'){
       cs.baseX=ww/cs.nativeW;cs.baseY=wh/cs.nativeH;
     } else {
@@ -956,7 +956,7 @@ function applyTransform(suffix,wrapId){
   const cs=cropStates[suffix];if(!cs||!cs.nativeW)return;
   const img=document.getElementById('cropImg'+(suffix||''));
   const wrap=document.getElementById(wrapId);
-  const ww=wrap.offsetWidth,wh=wrap.offsetHeight;
+  const ww=wrap.clientWidth,wh=wrap.clientHeight;
   const z=zEfectivo(cs,ww,wh);
   const sw=cs.nativeW*cs.baseX*z,sh=cs.nativeH*cs.baseY*z;
   const th=cropThetaRad(cs),co=Math.cos(th),si=Math.sin(th);
@@ -985,7 +985,7 @@ function applyTransform(suffix,wrapId){
 // Cambia zoom y/o ángulo manteniendo el centro del cuadro como pivote
 function cambiarVista(suffix,wrapId,nzf,nth){
   const cs=cropStates[suffix];if(!cs||!cs.nativeW)return;
-  const wrap=document.getElementById(wrapId);const ww=wrap.offsetWidth,wh=wrap.offsetHeight;
+  const wrap=document.getElementById(wrapId);const ww=wrap.clientWidth,wh=wrap.clientHeight;
   const oldZ=zEfectivo(cs,ww,wh);
   const oldTh=cs.rot90+cs.fine;
   if(nth!==undefined){
@@ -1004,7 +1004,7 @@ function cambiarVista(suffix,wrapId,nzf,nth){
 
 function doCrop(wrapId,cs){
   const wrap=document.getElementById(wrapId);
-  const ww=wrap.offsetWidth,wh=wrap.offsetHeight;
+  const ww=wrap.clientWidth,wh=wrap.clientHeight;
   const z=zEfectivo(cs,ww,wh);
   const sw=cs.nativeW*cs.baseX*z,sh=cs.nativeH*cs.baseY*z;
   const canvas=document.getElementById('cropCanvas');canvas.width=600;canvas.height=600;
@@ -1069,7 +1069,7 @@ function setupDrag(pantallaId,getCropInfo){
       const cs=active.cs,a=e.touches[0],b=e.touches[1];
       const wrap=document.getElementById(active.wrapId);
       cs.dragging=false;
-      active.g={d0:Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY)||1,a0:Math.atan2(b.clientY-a.clientY,b.clientX-a.clientX)*180/Math.PI,zf0:zEfectivo(cs,wrap.offsetWidth,wrap.offsetHeight),th0:cs.rot90+cs.fine};
+      active.g={d0:Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY)||1,a0:Math.atan2(b.clientY-a.clientY,b.clientX-a.clientX)*180/Math.PI,zf0:zEfectivo(cs,wrap.clientWidth,wrap.clientHeight),th0:cs.rot90+cs.fine};
       e.preventDefault();return;
     }
     const info=getCropInfo(e.target);if(!info)return;
@@ -1129,7 +1129,7 @@ function setupDrag(pantallaId,getCropInfo){
     const slider=document.getElementById(btn.dataset.target);
     const step=(parseFloat(slider.step)||0.1)/100;
     const dir=btn.dataset.dir==='+'?1:-1;
-    const ns=Math.min(Math.max(zEfectivo(cs,wrap.offsetWidth,wrap.offsetHeight)+dir*step,parseFloat(slider.min)/100),parseFloat(slider.max)/100);
+    const ns=Math.min(Math.max(zEfectivo(cs,wrap.clientWidth,wrap.clientHeight)+dir*step,parseFloat(slider.min)/100),parseFloat(slider.max)/100);
     cambiarVista(info.suffix,info.wrapId,ns);
   });
 }
