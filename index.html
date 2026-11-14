@@ -265,10 +265,29 @@ body{background:var(--bg-app);display:flex;justify-content:center;align-items:fl
 .tazo-check.tengo{background:rgba(34,197,94,0.85);}
 .tazo-check.no-tengo{background:rgba(100,116,139,0.55);font-size:11px;}
 .tazo-label{font-size:var(--font-size-xs);font-weight:bold;color:var(--text-secondary);margin-top:4px;}
+
+/* ── VISOR DE IMAGEN (zoom rápido) ─────────────────────────────────────── */
+.visor-overlay{position:absolute;inset:0;background:#000;z-index:500;display:none;flex-direction:column;touch-action:none;}
+.visor-overlay.activa{display:flex;}
+.visor-top{display:flex;justify-content:flex-end;padding:14px;flex-shrink:0;}
+.visor-cerrar{background:rgba(255,255,255,0.15);border:none;color:white;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;}
+.visor-body{flex:1;overflow:hidden;position:relative;display:flex;align-items:center;justify-content:center;touch-action:none;}
+.visor-body img{position:absolute;max-width:none;max-height:none;will-change:transform;user-select:none;-webkit-user-drag:none;}
+.visor-hint{text-align:center;color:rgba(255,255,255,0.55);font-size:11px;padding:10px 0 16px;flex-shrink:0;}
+.det-img-wrap{cursor:zoom-in;}
+.lupa-wrap{position:relative;}
+.btn-lupa{position:absolute;bottom:10px;right:4px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,0.55);color:white;border:none;font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:5;}
 </style>
 </head>
 <body>
 <div class="celular-frame" id="appFrame">
+
+  <!-- VISOR DE IMAGEN (zoom rápido) -->
+  <div class="visor-overlay" id="visorOverlay">
+    <div class="visor-top"><button class="visor-cerrar" onclick="cerrarVisor()">✕</button></div>
+    <div class="visor-body" id="visorBody"><img id="visorImg" src="" alt=""></div>
+    <div class="visor-hint">Pellizca o arrastra para hacer zoom</div>
+  </div>
 
   <!-- ════════════════ PANTALLA: INICIO (SELECTOR DE COLECCIONES) ════════════════ -->
   <div id="vista-home" style="display:flex;flex-direction:column;height:100%;">
@@ -760,16 +779,18 @@ async function verDetalle(id){
   const t=tazos.find(x=>x.id===id);selTazoId=id;
   const col=colecciones.find(c=>c.id===t.coleccionId);
   const fotos=await dbGet('fotos',id)||{};
+  fotosActuales=fotos;
   document.getElementById('nav-detalle-bg').style.background=t.tengo?'var(--accent)':'#64748b';
   document.getElementById('det-titulo').textContent=`Tazo N° ${t.numero}`;
   const c=document.getElementById('cuerpo-detalle');c.innerHTML='';
 
   const claseShape=claseForma(col.forma);
+  visorClaseActual=claseShape;
 
   // imagen catálogo
   const imgDiv=document.createElement('div');imgDiv.className=`det-img-wrap ${claseShape}`;
-  if(t.imgBase64)imgDiv.innerHTML=`<img src="${t.imgBase64}" alt="Tazo ${t.numero}">`;
-  else imgDiv.innerHTML=`<div class="tazo-numero-bg" style="width:100%;height:100%"><span style="font-size:32px">#${t.numero}</span></div>`;
+  if(t.imgBase64){imgDiv.innerHTML=`<img src="${t.imgBase64}" alt="Tazo ${t.numero}">`;imgDiv.onclick=()=>abrirVisor(t.imgBase64,claseShape);}
+  else{imgDiv.innerHTML=`<div class="tazo-numero-bg" style="width:100%;height:100%"><span style="font-size:32px">#${t.numero}</span></div>`;imgDiv.style.cursor='default';}
   c.appendChild(imgDiv);
 
   // info
@@ -786,10 +807,12 @@ async function verDetalle(id){
     const bloque=document.createElement('div');bloque.className='bloque-fisico';
     bloque.innerHTML=`
       <div style="font-weight:bold;color:var(--green-dark);margin-bottom:8px;font-size:var(--font-size-sm)">Vista de mi tazo físico</div>
+      <div class="lupa-wrap">
+      ${(fotos.front||fotos.back)?`<button class="btn-lupa" onclick="abrirVisorFlip()">🔍</button>`:''}
       <div class="flip-container ${claseShape}" id="flipCard" style="aspect-ratio:1/1"><div class="flip-inner">
         <div class="flip-face">${fotos.front?`<img src="${fotos.front}">`:'Frente — sin foto'}</div>
         <div class="flip-face flip-back">${fotos.back?`<img src="${fotos.back}">`:'Reverso — sin foto'}</div>
-      </div></div>
+      </div></div></div>
       <p class="flip-hint">Toca el tazo para voltearlo</p>
       <div class="flip-btn">
         <button class="active" id="btnLadoF" onclick="setLado('front')">Frente</button>
@@ -913,6 +936,112 @@ document.getElementById('btnGuardarFisica').onclick=async()=>{
   await dbPut('fotos',fotos);
   cerrarModal('modal-fisica');await verDetalle(selTazoId);
 };
+
+// ── VISOR DE IMAGEN (zoom rápido, solo lectura) ─────────────────────────────────
+let visorState=null,fotosActuales=null,visorClaseActual='shape-circulo';
+function abrirVisor(src,claseShape){
+  if(!src)return;
+  const img=document.getElementById('visorImg');
+  img.className=claseShape||'';
+  img.src=src;
+  img.onload=()=>{
+    const body=document.getElementById('visorBody');
+    const bw=body.clientWidth,bh=body.clientHeight;
+    const natW=img.naturalWidth,natH=img.naturalHeight;
+    const fitScale=Math.min(bw/natW,bh/natH);
+    visorState={scale:fitScale,minScale:fitScale,maxScale:fitScale*6,natW,natH,ox:(bw-natW*fitScale)/2,oy:(bh-natH*fitScale)/2,pointers:new Map(),dragging:false};
+    aplicarVisorTransform();
+  };
+  img.onerror=()=>{cerrarVisor();alert('No se pudo abrir esta imagen.');};
+  if(img.complete&&img.naturalWidth)img.onload();
+  document.getElementById('visorOverlay').classList.add('activa');
+}
+function cerrarVisor(){document.getElementById('visorOverlay').classList.remove('activa');visorState=null;}
+function abrirVisorFlip(){
+  if(!fotosActuales)return;
+  const flipped=document.getElementById('flipCard')?.classList.contains('flipped');
+  const src=flipped?fotosActuales.back:fotosActuales.front;
+  if(src)abrirVisor(src,visorClaseActual);
+}
+function aplicarVisorTransform(){
+  if(!visorState)return;
+  const img=document.getElementById('visorImg');
+  const body=document.getElementById('visorBody');
+  const bw=body.clientWidth,bh=body.clientHeight;
+  const vs=visorState;
+  const sw=vs.natW*vs.scale,sh=vs.natH*vs.scale;
+  vs.ox=sw<=bw?(bw-sw)/2:Math.min(0,Math.max(vs.ox,bw-sw));
+  vs.oy=sh<=bh?(bh-sh)/2:Math.min(0,Math.max(vs.oy,bh-sh));
+  img.style.width=sw+'px';img.style.height=sh+'px';img.style.left=vs.ox+'px';img.style.top=vs.oy+'px';
+}
+(function(){
+  const body=document.getElementById('visorBody');
+  let lastTap=0;
+  body.addEventListener('pointerdown',e=>{
+    if(!visorState)return;
+    body.setPointerCapture(e.pointerId);
+    const now=Date.now();
+    if(now-lastTap<300&&visorState.pointers.size===0){
+      visorState.scale=visorState.scale>visorState.minScale*1.05?visorState.minScale:visorState.minScale*3;
+      aplicarVisorTransform();lastTap=0;return;
+    }
+    lastTap=now;
+    visorState.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(visorState.pointers.size===1){
+      visorState.dragging=true;visorState.startX=e.clientX;visorState.startY=e.clientY;visorState.startOx=visorState.ox;visorState.startOy=visorState.oy;
+    } else if(visorState.pointers.size===2){
+      visorState.dragging=false;
+      const pts=[...visorState.pointers.values()];
+      visorState.startDist=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);
+      visorState.startScale=visorState.scale;
+      const rect=body.getBoundingClientRect();
+      visorState.pinchCx=(pts[0].x+pts[1].x)/2-rect.left;
+      visorState.pinchCy=(pts[0].y+pts[1].y)/2-rect.top;
+    }
+  });
+  body.addEventListener('pointermove',e=>{
+    if(!visorState||!visorState.pointers.has(e.pointerId))return;
+    visorState.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(visorState.pointers.size===1&&visorState.dragging){
+      visorState.ox=visorState.startOx+(e.clientX-visorState.startX);
+      visorState.oy=visorState.startOy+(e.clientY-visorState.startY);
+      aplicarVisorTransform();
+    } else if(visorState.pointers.size===2){
+      const pts=[...visorState.pointers.values()];
+      const dist=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);
+      const ratio=dist/(visorState.startDist||1);
+      const before=visorState.scale;
+      const ns=Math.min(visorState.maxScale,Math.max(visorState.minScale,visorState.startScale*ratio));
+      visorState.ox=visorState.pinchCx-(visorState.pinchCx-visorState.ox)*(ns/before);
+      visorState.oy=visorState.pinchCy-(visorState.pinchCy-visorState.oy)*(ns/before);
+      visorState.scale=ns;
+      aplicarVisorTransform();
+    }
+  });
+  function endPointer(e){
+    if(!visorState)return;
+    visorState.pointers.delete(e.pointerId);
+    if(visorState.pointers.size===0)visorState.dragging=false;
+    else if(visorState.pointers.size===1){
+      const p=[...visorState.pointers.values()][0];
+      visorState.dragging=true;visorState.startX=p.x;visorState.startY=p.y;visorState.startOx=visorState.ox;visorState.startOy=visorState.oy;
+    }
+  }
+  body.addEventListener('pointerup',endPointer);
+  body.addEventListener('pointercancel',endPointer);
+  body.addEventListener('wheel',e=>{
+    if(!visorState)return;
+    e.preventDefault();
+    const rect=body.getBoundingClientRect();
+    const cx=e.clientX-rect.left,cy=e.clientY-rect.top;
+    const before=visorState.scale;
+    const ns=Math.min(visorState.maxScale,Math.max(visorState.minScale,before*(e.deltaY<0?1.12:0.89)));
+    visorState.ox=cx-(cx-visorState.ox)*(ns/before);
+    visorState.oy=cy-(cy-visorState.oy)*(ns/before);
+    visorState.scale=ns;
+    aplicarVisorTransform();
+  },{passive:false});
+})();
 
 // ── CROP ENGINE ───────────────────────────────────────────────────────────────
 // Modo de ajuste inicial por editor: 'stretch' = la imagen se estira para llenar todo el cuadro;
