@@ -879,7 +879,11 @@ function activarEdicion(t){
   cerrarModal('modal-detalle');document.getElementById('modal-formulario').classList.add('activa');
 }
 
-document.getElementById('uploadArea').onclick=()=>pickFile(src=>{cropStates[''].originalSrc=src;initCrop(src,'','cropWrap','cropOuter','zoomSlider');});
+document.getElementById('uploadArea').onclick=()=>pickFile(async src=>{
+  cropStates[''].originalSrc=src;
+  const caja=await detectarContorno(src);
+  initCrop(src,'','cropWrap','cropOuter','zoomSlider',caja);
+});
 
 document.getElementById('btnGuardar').onclick=async()=>{
   const numero=parseInt(document.getElementById('form-numero').value);
@@ -1061,7 +1065,7 @@ function zMinimo(cs,ww,wh){
 }
 function zEfectivo(cs,ww,wh){return Math.max(cs.zf,zMinimo(cs,ww,wh)+1e-9);}
 
-function initCrop(src,suffix,wrapId,outerId,sliderId){
+function initCrop(src,suffix,wrapId,outerId,sliderId,caja){
   document.getElementById(outerId).style.display='block';
   const img=document.getElementById('cropImg'+(suffix||''));
   img.src=src;
@@ -1077,6 +1081,15 @@ function initCrop(src,suffix,wrapId,outerId,sliderId){
     }
     cs.zf=1;cs.rot90=0;cs.fine=0;
     cs.cx=ww/2;cs.cy=wh/2;
+    // Si se detectó el contorno del tazo, se encuadra para que ese contorno llene la silueta
+    // (escala pareja, sin deformar) y quede centrado. Sin contorno detectado, queda el ajuste de siempre.
+    if(caja){
+      const bw=(caja.r-caja.l)*cs.nativeW,bh=(caja.b-caja.t)*cs.nativeH;
+      const k=Math.max(ww/bw,wh/bh);
+      cs.baseX=cs.baseY=k;
+      cs.cx=ww/2+(0.5-(caja.l+caja.r)/2)*cs.nativeW*k;
+      cs.cy=wh/2+(0.5-(caja.t+caja.b)/2)*cs.nativeH*k;
+    }
     applyTransform(suffix||'',wrapId);
   };
 }
@@ -1152,6 +1165,50 @@ function doCrop(wrapId,cs){
     };
     ni.src=cs.originalSrc;
     if(ni.complete&&ni.naturalWidth)ni.onload();
+  });
+}
+
+// ── DETECCIÓN DEL CONTORNO DEL TAZO (espacio blanco o transparente alrededor) ─
+// Devuelve {l,t,r,b} (fracciones 0..1 de la imagen) con el rectángulo que ocupa el tazo,
+// o null si no hay margen relevante o no se pudo analizar. Sirve para todas las formas
+// (círculo, cuadrado, hexágono, octágono, rombo y escudo) porque cada una toca los cuatro
+// lados de su caja. Una fila/columna cuenta como "con tazo" si tiene algunos píxeles que
+// no son fondo, de modo que las puntas y curvas (círculo, rombo, escudo) no se recortan.
+function detectarContorno(src){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        const W=img.naturalWidth,H=img.naturalHeight;
+        if(!W||!H){resolve(null);return;}
+        const k=Math.min(1,500/Math.max(W,H));
+        const w=Math.max(1,Math.round(W*k)),h=Math.max(1,Math.round(H*k));
+        const c=document.createElement('canvas');c.width=w;c.height=h;
+        const ctx=c.getContext('2d',{willReadFrequently:true});
+        ctx.drawImage(img,0,0,w,h);
+        const d=ctx.getImageData(0,0,w,h).data;
+        const esTazo=(x,y)=>{
+          const i=(y*w+x)*4;
+          if(d[i+3]<10)return false;
+          return !(d[i]>225&&d[i+1]>225&&d[i+2]>225);
+        };
+        const minFila=Math.max(2,Math.round(w*0.005)),minCol=Math.max(2,Math.round(h*0.005));
+        const filaTiene=y=>{let n=0;for(let x=0;x<w;x++)if(esTazo(x,y)&&++n>=minFila)return true;return false;};
+        const colTiene=x=>{let n=0;for(let y=0;y<h;y++)if(esTazo(x,y)&&++n>=minCol)return true;return false;};
+        let top=0,bottom=h-1,left=0,right=w-1;
+        while(top<h&&!filaTiene(top))top++;
+        while(bottom>top&&!filaTiene(bottom))bottom--;
+        while(left<w&&!colTiene(left))left++;
+        while(right>left&&!colTiene(right))right--;
+        const bw=right-left+1,bh=bottom-top+1;
+        // Seguridad: si casi no hay margen, o lo detectado es demasiado pequeño, no se toca nada
+        const margen=Math.max(top,h-1-bottom,left,w-1-right);
+        if(margen<2||bw<w*0.15||bh<h*0.15){resolve(null);return;}
+        resolve({l:left/w,t:top/h,r:(right+1)/w,b:(bottom+1)/h});
+      }catch(e){resolve(null);}
+    };
+    img.onerror=()=>resolve(null);
+    img.src=src;
   });
 }
 
