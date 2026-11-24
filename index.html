@@ -277,6 +277,20 @@ body{background:var(--bg-app);display:flex;justify-content:center;align-items:fl
 .det-img-wrap{cursor:zoom-in;}
 .lupa-wrap{position:relative;}
 .btn-lupa{position:absolute;bottom:10px;right:4px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,0.55);color:white;border:none;font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:5;}
+
+/* ── RESPALDO ── */
+.banner-respaldo{display:none;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:rgba(180,83,9,0.15);border:1px solid #b45309;border-radius:10px;padding:8px 10px;margin:8px 10px 0;font-size:var(--font-size-xs);color:var(--text-primary);}
+.banner-respaldo.activo{display:flex;}
+.banner-respaldo-btns{display:flex;gap:6px;}
+.banner-respaldo-btns button{border:none;border-radius:6px;padding:6px 10px;font-size:var(--font-size-xs);font-weight:bold;cursor:pointer;}
+.banner-respaldo-btns button:first-child{background:#b45309;color:white;}
+.banner-respaldo-btns button:last-child{background:transparent;color:var(--text-secondary);}
+.sheet-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:flex-end;justify-content:center;}
+.sheet-overlay.activa{display:flex;}
+.sheet-box{width:100%;max-width:340px;background:var(--bg-card);border-radius:14px 14px 0 0;padding:8px 10px 12px;display:flex;flex-direction:column;gap:6px;}
+.sheet-titulo{padding:8px 4px;text-align:center;font-size:var(--font-size-base);font-weight:500;color:var(--text-primary);}
+.sheet-opcion,.sheet-cancelar{width:100%;padding:11px;border-radius:8px;font-weight:bold;font-size:var(--font-size-sm);cursor:pointer;border:1px solid var(--border2);background:var(--bg-secondary);color:var(--text-primary);}
+.sheet-cancelar{background:transparent;color:var(--text-secondary);}
 </style>
 </head>
 <body>
@@ -295,6 +309,13 @@ body{background:var(--bg-app);display:flex;justify-content:center;align-items:fl
       <button class="btn-config" onclick="abrirEstadisticasGlobales()" title="Estadísticas">📊</button>
       <span class="header-title">Mis Tazos</span>
       <button class="btn-config" onclick="abrirConfig()" title="Configuración">⚙️</button>
+    </div>
+    <div class="banner-respaldo" id="bannerRespaldo">
+      <span>💾 Hace tiempo que no haces una copia de seguridad.</span>
+      <div class="banner-respaldo-btns">
+        <button onclick="exportarTodo()">Copia de seguridad ahora</button>
+        <button onclick="posponerBannerRespaldo()">Más tarde</button>
+      </div>
     </div>
     <div class="contenido-scroll">
       <div class="home-grid" id="home-grid"></div>
@@ -465,6 +486,7 @@ body{background:var(--bg-app);display:flex;justify-content:center;align-items:fl
       <button class="btn-datos" onclick="exportarTodo()">📤 Exportar todo (respaldo)</button>
       <button class="btn-datos" onclick="document.getElementById('importInput').click()">📥 Importar respaldo</button>
       <input type="file" id="importInput" accept=".json" style="display:none" onchange="importarTodo(this)">
+      <div class="config-desc" id="estadoRespaldo" style="margin-top:8px"></div>
     </div>
   </div>
 
@@ -479,15 +501,28 @@ body{background:var(--bg-app);display:flex;justify-content:center;align-items:fl
 
 </div>
 
+<div class="sheet-overlay" id="sheetImportOverlay">
+  <div class="sheet-box">
+    <div class="sheet-titulo">¿Cómo quieres importar este archivo?</div>
+    <button class="sheet-opcion" id="sheetImportFusionar">🔗 Fusionar (agregar sin perder lo mío)</button>
+    <button class="sheet-opcion" id="sheetImportReemplazar">♻️ Reemplazar todo</button>
+    <button class="sheet-cancelar" onclick="cerrarSheetImport()">Cancelar</button>
+  </div>
+</div>
+
 <input type="file" id="fileInput" accept="image/*" style="display:none">
 <canvas id="cropCanvas" style="display:none"></canvas>
 
 <script>
 // ── DB ────────────────────────────────────────────────────────────────────────
 let DB;
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 function initDB(){
   return new Promise((res,rej)=>{
-    const req=indexedDB.open('TazosAlbum',1);
+    if(!window.indexedDB){rej(new Error('IndexedDB no disponible'));return;}
+    let req;
+    try{req=indexedDB.open('TazosAlbum',1);}catch(err){rej(err);return;}
     req.onupgradeneeded=e=>{
       const db=e.target.result;
       if(!db.objectStoreNames.contains('colecciones'))db.createObjectStore('colecciones',{keyPath:'id'});
@@ -495,14 +530,57 @@ function initDB(){
       if(!db.objectStoreNames.contains('fotos'))db.createObjectStore('fotos',{keyPath:'id'});
     };
     req.onsuccess=e=>{DB=e.target.result;res();};
-    req.onerror=()=>rej();
+    req.onerror=()=>rej(req.error||new Error('No se pudo abrir la base de datos'));
+    req.onblocked=()=>rej(new Error('Base de datos bloqueada'));
   });
 }
-function dbPut(store,obj){return new Promise(res=>{const tx=DB.transaction(store,'readwrite');tx.objectStore(store).put(obj).onsuccess=()=>res();});}
-function dbDelete(store,id){return new Promise(res=>{const tx=DB.transaction(store,'readwrite');tx.objectStore(store).delete(id).onsuccess=()=>res();});}
-function dbGet(store,id){return new Promise(res=>{const tx=DB.transaction(store,'readonly');tx.objectStore(store).get(id).onsuccess=e=>res(e.target.result);});}
-function dbGetAll(store){return new Promise(res=>{const tx=DB.transaction(store,'readonly');tx.objectStore(store).getAll().onsuccess=e=>res(e.target.result||[]);});}
-function dbClearStore(store){return new Promise(res=>{const tx=DB.transaction(store,'readwrite');tx.objectStore(store).clear().onsuccess=()=>res();});}
+// Avisa (como máximo una vez cada 8 s) cuando un guardado falla
+let _ultAviso=0;
+function avisarErrorGuardado(err){
+  if(Date.now()-_ultAviso<8000)return;
+  _ultAviso=Date.now();
+  const lleno=err&&err.name==='QuotaExceededError';
+  alert(lleno
+    ?'⚠️ No hay espacio suficiente para guardar. Libera espacio en el dispositivo o exporta un respaldo, e inténtalo de nuevo.'
+    :'⚠️ No se pudo guardar el cambio: solo se verá en pantalla hasta que cierres la app. Exporta un respaldo si puedes e inténtalo de nuevo.');
+}
+// Una sola transacción: se resuelve solo cuando el navegador confirma que todo quedó guardado
+function dbTx(stores,modo,trabajo){
+  return new Promise((resolve,reject)=>{
+    let tx,req;
+    const fallo=err=>{if(modo==='readwrite')avisarErrorGuardado(err);reject(err);};
+    try{tx=DB.transaction(stores,modo);}catch(err){fallo(err);return;}
+    tx.oncomplete=()=>{if(modo==='readwrite')programarRespaldoLocal();resolve(req?req.result:undefined);};
+    tx.onerror=e=>fallo((e.target&&e.target.error)||tx.error||new Error('Error en la base de datos'));
+    tx.onabort=()=>fallo(tx.error||new Error('Transacción cancelada'));
+    try{req=trabajo(tx);}catch(err){try{tx.abort();}catch(e){}fallo(err);}
+  });
+}
+function dbPut(store,obj){return dbTx(store,'readwrite',tx=>tx.objectStore(store).put(obj));}
+function dbDelete(store,id){return dbTx(store,'readwrite',tx=>tx.objectStore(store).delete(id));}
+function dbGet(store,id){return dbTx(store,'readonly',tx=>tx.objectStore(store).get(id));}
+function dbGetAll(store){return dbTx(store,'readonly',tx=>tx.objectStore(store).getAll()).then(r=>r||[]);}
+function dbClearStore(store){return dbTx(store,'readwrite',tx=>tx.objectStore(store).clear());}
+
+// Respaldo secundario en localStorage (sin imágenes; mejor esfuerzo, no afecta al guardado principal)
+let _tRespLocal=null;
+function programarRespaldoLocal(){clearTimeout(_tRespLocal);_tRespLocal=setTimeout(respaldarEnLocalStorage,1500);}
+function respaldarEnLocalStorage(){
+  try{
+    localStorage.setItem('TAZOS_RESPALDO_LOCAL',JSON.stringify({
+      v:1,fecha:Date.now(),
+      colecciones:colecciones.map(c=>{const x={...c};delete x.imgPortada;return x;}),
+      tazos:tazos.map(t=>{const x={...t};delete x.imgBase64;return x;})
+    }));
+  }catch(e){}
+}
+function leerRespaldoLocal(){
+  try{
+    const d=JSON.parse(localStorage.getItem('TAZOS_RESPALDO_LOCAL'));
+    if(d&&Array.isArray(d.colecciones)&&Array.isArray(d.tazos))return d;
+  }catch(e){}
+  return null;
+}
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let colecciones=[];   // [{id,nombre,total,forma,imgPortada}]
@@ -558,7 +636,7 @@ function cargarPreferencias(){
   if(dark){document.getElementById('appFrame').setAttribute('data-theme','dark');document.getElementById('toggleDark').checked=true;}
   setFont(font);
 }
-function abrirConfig(){document.getElementById('modal-config').classList.add('activa');}
+function abrirConfig(){document.getElementById('modal-config').classList.add('activa');actualizarEstadoRespaldo();}
 
 // ── NAVEGACIÓN HOME / ÁLBUM ────────────────────────────────────────────────────
 function volverAHome(){
@@ -1400,43 +1478,168 @@ function abrirEstadisticasGlobales(){
 }
 
 // ── EXPORTAR / IMPORTAR ───────────────────────────────────────────────────────
-async function exportarTodo(){
-  const todasFotos=[];
-  for(const t of tazos){
-    const f=await dbGet('fotos',t.id);
-    if(f)todasFotos.push(f);
-  }
-  const datos={colecciones,tazos,fotos:todasFotos};
-  const blob=new Blob([JSON.stringify(datos,null,2)],{type:'application/json'});
+// El archivo se arma por partes (un tazo o una foto a la vez) para no agotar la memoria del celular.
+// El formato sigue siendo {colecciones,tazos,fotos}: los respaldos antiguos siguen siendo válidos.
+async function construirRespaldo(){
+  const ids=(await dbTx('fotos','readonly',tx=>tx.objectStore('fotos').getAllKeys()))||[];
+  let blob=new Blob([],{type:'application/json'}),lote=[],tam=0;
+  const push=async(s,fin)=>{
+    lote.push(s);tam+=s.length;
+    if(fin||tam>4*1024*1024){blob=new Blob([blob,...lote],{type:'application/json'});lote=[];tam=0;await new Promise(r=>setTimeout(r,0));}
+  };
+  const ind=o=>'    '+JSON.stringify(o,null,2).replace(/\n/g,'\n    ');
+  const lista=async(clave,n,get,coma)=>{
+    await push(`  "${clave}": [\n`);
+    for(let i=0;i<n;i++)await push(ind(await get(i))+(i<n-1?',\n':'\n'));
+    await push('  ]'+coma+'\n');
+  };
+  await push('{\n  "version": 2,\n');
+  await lista('colecciones',colecciones.length,i=>colecciones[i],',');
+  await lista('tazos',tazos.length,i=>tazos[i],',');
+  await lista('fotos',ids.length,async i=>(await dbGet('fotos',ids[i]))||{id:ids[i]},'');
+  await push('}',true);
+  return blob;
+}
+function descargarBlob(blob,nombre){
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  const fecha=new Date().toISOString().split('T')[0];
-  a.href=url;a.download=`mis-tazos-respaldo-${fecha}.json`;
-  document.body.appendChild(a);a.click();
-  document.body.removeChild(a);URL.revokeObjectURL(url);
+  a.href=url;a.download=nombre;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+async function exportarTodo(){
+  try{
+    const blob=await construirRespaldo();
+    descargarBlob(blob,`mis-tazos-respaldo-${new Date().toISOString().split('T')[0]}.json`);
+    lsSet('TAZOS_ULTIMO_EXPORT',String(Date.now()));
+    ocultarBannerRespaldo();actualizarEstadoRespaldo();
+  }catch(err){
+    console.error('Error al exportar:',err);
+    alert('❌ No se pudo preparar el respaldo (puede faltar memoria o espacio, o la base de datos no está disponible). Tus datos no se tocaron. Inténtalo de nuevo con otras aplicaciones cerradas.');
+  }
 }
 
+// Revisa el archivo ANTES de tocar nada
+let pendingImport=null;
+function errVal(m){const e=new Error(m);e.esValidacion=true;return e;}
+function validarRespaldo(raw){
+  if(!raw||typeof raw!=='object'||!Array.isArray(raw.colecciones)||!Array.isArray(raw.tazos))
+    throw errVal('❌ Este archivo no parece un respaldo de Mis Tazos. No se cambió nada.');
+  if(!raw.colecciones.length)throw errVal('❌ El respaldo no contiene ninguna colección, así que no se importó nada.');
+  const idOk=v=>(typeof v==='string'&&v!=='')||(typeof v==='number'&&isFinite(v));
+  const idsCol=new Set();
+  raw.colecciones.forEach((c,i)=>{
+    const n=i+1;
+    if(!c||typeof c!=='object'||Array.isArray(c)||!idOk(c.id))throw errVal(`❌ El archivo tiene datos dañados: la colección ${n} no es válida. No se cambió nada.`);
+    if(typeof c.nombre!=='string'||!c.nombre.trim())throw errVal(`❌ El archivo tiene datos dañados: la colección ${n} no tiene nombre. No se cambió nada.`);
+    if(c.imgPortada!=null&&typeof c.imgPortada!=='string')throw errVal(`❌ El archivo tiene datos dañados: la portada de la colección ${n} no es válida. No se cambió nada.`);
+    if(idsCol.has(c.id))throw errVal(`❌ El archivo tiene colecciones repetidas (colección ${n}). No se cambió nada.`);
+    idsCol.add(c.id);
+  });
+  const vistos=new Set(),tazosOk=[];let huerfanos=0;
+  raw.tazos.forEach((t,i)=>{
+    const n=i+1;
+    if(!t||typeof t!=='object'||Array.isArray(t)||!idOk(t.id)||!Number.isInteger(t.numero))throw errVal(`❌ El archivo tiene datos dañados: el tazo ${n} no es válido. No se cambió nada.`);
+    if(t.imgBase64!=null&&typeof t.imgBase64!=='string')throw errVal(`❌ El archivo tiene datos dañados: la imagen del tazo ${n} no es válida. No se cambió nada.`);
+    if(vistos.has(t.id))throw errVal(`❌ El archivo tiene tazos repetidos (tazo ${n}). No se cambió nada.`);
+    vistos.add(t.id);
+    if(!idsCol.has(t.coleccionId)){huerfanos++;return;}
+    tazosOk.push(t);
+  });
+  const vig=new Set(tazosOk.map(t=>t.id)),fv=new Set();
+  const fotosAll=Array.isArray(raw.fotos)?raw.fotos:[];
+  const fotos=fotosAll.filter(f=>{
+    if(!f||typeof f!=='object'||!vig.has(f.id)||fv.has(f.id))return false;
+    fv.add(f.id);return true;
+  });
+  return {colecciones:raw.colecciones,tazos:tazosOk,fotos,huerfanos,fotosDescartadas:fotosAll.length-fotos.length};
+}
 function importarTodo(input){
   const f=input.files[0];if(!f)return;
   const r=new FileReader();
   r.onload=async e=>{
-    try{
-      const datos=JSON.parse(e.target.result);
-      if(!datos.colecciones||!datos.tazos)throw new Error('Formato inválido');
-      if(confirm(`¿Importar ${datos.colecciones.length} colecciones y ${datos.tazos.length} tazos? Esto reemplazará todos tus datos actuales.`)){
-        await dbClearStore('colecciones');await dbClearStore('tazos');await dbClearStore('fotos');
-        colecciones=datos.colecciones;tazos=datos.tazos;
-        for(const c of colecciones)await dbPut('colecciones',c);
-        for(const t of tazos)await dbPut('tazos',t);
-        if(datos.fotos)for(const ft of datos.fotos)await dbPut('fotos',ft);
-        cerrarModal('modal-config');
-        volverAHome();
-        alert('✅ Datos importados correctamente.');
-      }
-    }catch{alert('❌ El archivo no es válido. Asegúrate de usar un respaldo generado por esta app.');}
     input.value='';
+    let raw;
+    try{raw=JSON.parse(e.target.result);}
+    catch{alert('❌ El archivo no es válido: no se pudo leer como respaldo. Asegúrate de usar un respaldo generado por esta app. No se cambió nada.');return;}
+    try{
+      pendingImport=validarRespaldo(raw);
+      document.getElementById('sheetImportOverlay').classList.add('activa');
+    }catch(err){
+      pendingImport=null;
+      alert(err&&err.esValidacion?err.message:'❌ El archivo no es válido. No se cambió nada.');
+    }
   };
   r.readAsText(f);
+}
+function cerrarSheetImport(){document.getElementById('sheetImportOverlay').classList.remove('activa');pendingImport=null;}
+
+document.getElementById('sheetImportReemplazar').onclick=async()=>{
+  if(!pendingImport)return;
+  const d=pendingImport;cerrarSheetImport();
+  if(!confirm(`¿Reemplazar tus datos actuales por ${d.colecciones.length} colecciones y ${d.tazos.length} tazos de este archivo? Esto borra lo que tengas ahora.`))return;
+  try{
+    // Una sola transacción: queda todo importado o no cambia nada
+    await dbTx(['colecciones','tazos','fotos'],'readwrite',tx=>{
+      const sc=tx.objectStore('colecciones'),st=tx.objectStore('tazos'),sf=tx.objectStore('fotos');
+      sc.clear();st.clear();
+      d.colecciones.forEach(c=>sc.put(c));
+      d.tazos.forEach(t=>st.put(t));
+      if(d.fotos.length){sf.clear();d.fotos.forEach(f=>sf.put(f));}
+      else{
+        const vig=new Set(d.tazos.map(t=>t.id));
+        sf.getAllKeys().onsuccess=e=>{for(const k of e.target.result){if(!vig.has(k))sf.delete(k);}};
+      }
+    });
+  }catch(err){return;}
+  colecciones=d.colecciones;tazos=d.tazos;
+  cerrarModal('modal-config');volverAHome();
+  alert('✅ Datos importados correctamente.'+(d.huerfanos?` (Se ignoraron ${d.huerfanos} tazo(s) sin colección.)`:''));
+};
+document.getElementById('sheetImportFusionar').onclick=async()=>{
+  if(!pendingImport)return;
+  const d=pendingImport;cerrarSheetImport();
+  const idsC=new Set(colecciones.map(c=>c.id)),idsT=new Set(tazos.map(t=>t.id));
+  const nuevasC=d.colecciones.filter(c=>!idsC.has(c.id));
+  const nuevosT=d.tazos.filter(t=>!idsT.has(t.id));
+  if(!nuevasC.length&&!nuevosT.length){alert('ℹ️ No había nada nuevo para agregar: ya tenías todo.');return;}
+  const idsNT=new Set(nuevosT.map(t=>t.id));
+  const nuevasF=d.fotos.filter(f=>idsNT.has(f.id));
+  const todos=tazos.concat(nuevosT);
+  // colecciones que ya existían y reciben tazos nuevos: se actualiza su total
+  const actualizadas=colecciones.filter(c=>nuevosT.some(t=>t.coleccionId===c.id)).map(c=>({...c,total:todos.filter(t=>t.coleccionId===c.id).length}));
+  try{
+    await dbTx(['colecciones','tazos','fotos'],'readwrite',tx=>{
+      const sc=tx.objectStore('colecciones'),st=tx.objectStore('tazos'),sf=tx.objectStore('fotos');
+      nuevasC.forEach(c=>sc.put(c));actualizadas.forEach(c=>sc.put(c));
+      nuevosT.forEach(t=>st.put(t));nuevasF.forEach(f=>sf.put(f));
+    });
+  }catch(err){return;}
+  colecciones=colecciones.map(c=>actualizadas.find(a=>a.id===c.id)||c).concat(nuevasC);
+  tazos=todos;
+  cerrarModal('modal-config');volverAHome();
+  alert(`✅ Se agregaron ${nuevasC.length} colección(es) y ${nuevosT.length} tazo(s) nuevo(s). Lo que ya tenías no se tocó.`);
+};
+
+// ── PROTECCIÓN Y RECORDATORIO DE RESPALDO ─────────────────────────────────────
+// Pide al navegador que no borre los datos por falta de espacio o inactividad
+if(navigator.storage&&navigator.storage.persist){navigator.storage.persist().catch(()=>{});}
+const DIAS_AVISO=14;
+function revisarBannerRespaldo(){
+  if(!colecciones.length)return;
+  const ult=parseInt(lsGet('TAZOS_ULTIMO_EXPORT')||'0',10);
+  const posp=parseInt(lsGet('TAZOS_POSPONER_EXPORT')||'0',10);
+  if((Date.now()-ult)/86400000>DIAS_AVISO&&(Date.now()-posp)/86400000>3)
+    document.getElementById('bannerRespaldo').classList.add('activo');
+}
+function ocultarBannerRespaldo(){document.getElementById('bannerRespaldo').classList.remove('activo');}
+function posponerBannerRespaldo(){lsSet('TAZOS_POSPONER_EXPORT',String(Date.now()));ocultarBannerRespaldo();}
+async function actualizarEstadoRespaldo(){
+  const el=document.getElementById('estadoRespaldo');if(!el)return;
+  const u=parseInt(lsGet('TAZOS_ULTIMO_EXPORT')||'0',10);
+  let t=u?'Último respaldo: '+new Date(u).toLocaleDateString('es-CL'):'Aún no has hecho ningún respaldo.';
+  try{if(navigator.storage&&navigator.storage.persisted){t+=' · Almacenamiento protegido por el navegador: '+((await navigator.storage.persisted())?'sí':'no');}}catch(e){}
+  el.textContent=t;
 }
 
 function cerrarModal(id){document.getElementById(id).classList.remove('activa');}
@@ -1445,11 +1648,41 @@ function cerrarModal(id){document.getElementById(id).classList.remove('activa');
 resetCrop('');resetCrop('Front');resetCrop('Back');resetCrop('Portada');
 cargarPreferencias();
 
-initDB().then(async()=>{
-  colecciones=await dbGetAll('colecciones');
-  tazos=await dbGetAll('tazos');
+(async()=>{
+  let ok=false,recuperados=null;
+  try{
+    await initDB();
+    colecciones=await dbGetAll('colecciones');
+    if(colecciones.length>0){tazos=await dbGetAll('tazos');}
+    else{
+      // Base vacía: si existe el respaldo secundario, se recuperan colecciones y tazos (sin imágenes)
+      const l=leerRespaldoLocal();
+      if(l&&l.colecciones.length>0){
+        colecciones=l.colecciones.map(c=>({...c,imgPortada:c.imgPortada||''}));
+        tazos=l.tazos.map(t=>({...t,imgBase64:t.imgBase64||''}));
+        recuperados={c:colecciones.length,t:tazos.length};
+        try{
+          await dbTx(['colecciones','tazos'],'readwrite',tx=>{
+            colecciones.forEach(c=>tx.objectStore('colecciones').put(c));
+            tazos.forEach(t=>tx.objectStore('tazos').put(t));
+          });
+        }catch(e){console.error(e);}
+      }else{tazos=await dbGetAll('tazos');}
+    }
+    ok=true;
+  }catch(err){
+    console.error('No se pudo abrir la base de datos:',err);
+    const l=leerRespaldoLocal();
+    if(l){
+      colecciones=l.colecciones.map(c=>({...c,imgPortada:c.imgPortada||''}));
+      tazos=l.tazos.map(t=>({...t,imgBase64:t.imgBase64||''}));
+    }
+  }
   renderHome();
-});
+  revisarBannerRespaldo();
+  if(!ok)alert('⚠️ No se pudo abrir la base de datos de este navegador (puede pasar en modo privado, con el almacenamiento lleno o bloqueado). La app abre en modo limitado: verás los datos del respaldo secundario (sin imágenes), pero los cambios NO se guardarán.');
+  else if(recuperados)alert(`ℹ️ Se detectó la base de datos vacía y se recuperaron ${recuperados.c} colección(es) y ${recuperados.t} tazo(s) desde la copia interna. Las imágenes no se pueden recuperar de ahí: si tiene un archivo de respaldo, impórtelo desde ⚙️ > Importar respaldo.`);
+})();
 
 // ── SERVICE WORKER ────────────────────────────────────────────────────────────
 if('serviceWorker' in navigator){
