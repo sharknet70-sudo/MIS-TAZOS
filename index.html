@@ -295,7 +295,8 @@ body{background:var(--bg-app);display:flex;justify-content:center;align-items:fl
 .trim-overlay.activa{display:flex;}
 .trim-box{background:var(--bg-card);border-radius:14px;padding:20px;max-width:400px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,0.45);border:1px solid var(--border2);}
 .trim-mensaje{font-size:var(--font-size-base);font-weight:500;color:var(--text-primary);margin:0 0 10px;line-height:1.45;}
-.trim-preview{width:100%;max-height:50vh;object-fit:contain;border-radius:8px;display:block;margin-bottom:14px;background:#000;}
+.trim-preview{position:relative;width:100%;aspect-ratio:1/1;overflow:hidden;border-radius:8px;border:1px solid var(--border2);background:#111;margin-bottom:14px;}
+.trim-preview img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;transform:scale(var(--ajuste-borde,1));}
 </style>
 </head>
 <body>
@@ -518,7 +519,7 @@ body{background:var(--bg-app);display:flex;justify-content:center;align-items:fl
 <div class="trim-overlay" id="trimOverlay">
   <div class="trim-box">
     <p class="trim-mensaje" id="trimMensaje">Detectamos un margen alrededor del tazo. ¿Usamos la imagen recortada?</p>
-    <img class="trim-preview" id="trimPreviewImg" src="" alt="">
+    <div class="trim-preview" id="trimPreviewWrap"><img id="trimPreviewImg" src="" alt=""></div>
     <div style="display:flex;flex-direction:column;gap:8px;">
       <button type="button" class="btn-accion btn-guardar" id="trimUseTrimmed" style="margin-top:0;">✂️ Usar esta imagen (recortada)</button>
       <button type="button" class="btn-datos" id="trimUseOriginal" style="margin-top:0;text-align:center;">Usar imagen original</button>
@@ -977,10 +978,13 @@ document.getElementById('uploadArea').onclick=()=>pickFile(async src=>{
   const caja=await detectarContorno(src);
   const recortada=caja?await recortarPorCaja(src,caja):null;
   // Sin margen detectado: se abre la imagen tal cual. Con margen: se pregunta si usar la recortada o la original.
-  const usarRecortada=recortada?await confirmarRecorteTazo(recortada):false;
+  const tzo=tazos.find(x=>x.id===editTazoId);
+  const colz=colecciones.find(c=>c.id===(tzo&&tzo.coleccionId));
+  const forma=colz?colz.forma:'circulo';
+  const usarRecortada=recortada?await confirmarRecorteTazo(recortada,forma):false;
   const finalSrc=usarRecortada?recortada:src;
   cropStates[''].originalSrc=finalSrc;
-  initCrop(finalSrc,'','cropWrap','cropOuter','zoomSlider');
+  initCrop(finalSrc,'','cropWrap','cropOuter','zoomSlider',null,usarRecortada?AJUSTE_BORDE:null);
 });
 
 document.getElementById('btnGuardar').onclick=async()=>{
@@ -1163,7 +1167,7 @@ function zMinimo(cs,ww,wh){
 }
 function zEfectivo(cs,ww,wh){return Math.max(cs.zf,zMinimo(cs,ww,wh)+1e-9);}
 
-function initCrop(src,suffix,wrapId,outerId,sliderId,caja){
+function initCrop(src,suffix,wrapId,outerId,sliderId,caja,extra){
   document.getElementById(outerId).style.display='block';
   const img=document.getElementById('cropImg'+(suffix||''));
   img.src=src;
@@ -1188,6 +1192,7 @@ function initCrop(src,suffix,wrapId,outerId,sliderId,caja){
       cs.cx=ww/2+(0.5-(caja.l+caja.r)/2)*cs.nativeW*k;
       cs.cy=wh/2+(0.5-(caja.t+caja.b)/2)*cs.nativeH*k;
     }
+    if(extra){cs.baseX*=extra;cs.baseY*=extra;}
     applyTransform(suffix||'',wrapId);
   };
 }
@@ -1333,7 +1338,13 @@ function recortarPorCaja(src,caja){
   });
 }
 // Muestra el aviso con la vista previa. Devuelve una Promise<boolean>: true = usar recortada, false = usar original.
-function confirmarRecorteTazo(trimmedSrc){
+// El borde del tazo suele traer un hilo claro (antialias contra el fondo blanco). Se amplía un poco la imagen
+// (2,5 %) para que ese hilo quede fuera de la silueta, tanto en la vista previa como en el editor.
+const AJUSTE_BORDE=1.025;
+function confirmarRecorteTazo(trimmedSrc,formaId){
+  const prev=document.getElementById('trimPreviewWrap');
+  prev.style.setProperty('--ajuste-borde',AJUSTE_BORDE);
+  ponerSilueta('trimPreviewWrap',formaId);
   document.getElementById('trimPreviewImg').src=trimmedSrc;
   const overlay=document.getElementById('trimOverlay');
   overlay.classList.add('activa');
