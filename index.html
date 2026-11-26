@@ -291,6 +291,11 @@ body{background:var(--bg-app);display:flex;justify-content:center;align-items:fl
 .sheet-titulo{padding:8px 4px;text-align:center;font-size:var(--font-size-base);font-weight:500;color:var(--text-primary);}
 .sheet-opcion,.sheet-cancelar{width:100%;padding:11px;border-radius:8px;font-weight:bold;font-size:var(--font-size-sm);cursor:pointer;border:1px solid var(--border2);background:var(--bg-secondary);color:var(--text-primary);}
 .sheet-cancelar{background:transparent;color:var(--text-secondary);}
+.trim-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:10000;display:none;align-items:center;justify-content:center;padding:24px;}
+.trim-overlay.activa{display:flex;}
+.trim-box{background:var(--bg-card);border-radius:14px;padding:20px;max-width:400px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,0.45);border:1px solid var(--border2);}
+.trim-mensaje{font-size:var(--font-size-base);font-weight:500;color:var(--text-primary);margin:0 0 10px;line-height:1.45;}
+.trim-preview{width:100%;max-height:50vh;object-fit:contain;border-radius:8px;display:block;margin-bottom:14px;background:#000;}
 </style>
 </head>
 <body>
@@ -507,6 +512,17 @@ body{background:var(--bg-app);display:flex;justify-content:center;align-items:fl
     <button class="sheet-opcion" id="sheetImportFusionar">🔗 Fusionar (agregar sin perder lo mío)</button>
     <button class="sheet-opcion" id="sheetImportReemplazar">♻️ Reemplazar todo</button>
     <button class="sheet-cancelar" onclick="cerrarSheetImport()">Cancelar</button>
+  </div>
+</div>
+
+<div class="trim-overlay" id="trimOverlay">
+  <div class="trim-box">
+    <p class="trim-mensaje" id="trimMensaje">Detectamos un margen alrededor del tazo. ¿Usamos la imagen recortada?</p>
+    <img class="trim-preview" id="trimPreviewImg" src="" alt="">
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <button type="button" class="btn-accion btn-guardar" id="trimUseTrimmed" style="margin-top:0;">✂️ Usar esta imagen (recortada)</button>
+      <button type="button" class="btn-datos" id="trimUseOriginal" style="margin-top:0;text-align:center;">Usar imagen original</button>
+    </div>
   </div>
 </div>
 
@@ -958,9 +974,13 @@ function activarEdicion(t){
 }
 
 document.getElementById('uploadArea').onclick=()=>pickFile(async src=>{
-  cropStates[''].originalSrc=src;
   const caja=await detectarContorno(src);
-  initCrop(src,'','cropWrap','cropOuter','zoomSlider',caja);
+  const recortada=caja?await recortarPorCaja(src,caja):null;
+  // Sin margen detectado: se abre la imagen tal cual. Con margen: se pregunta si usar la recortada o la original.
+  const usarRecortada=recortada?await confirmarRecorteTazo(recortada):false;
+  const finalSrc=usarRecortada?recortada:src;
+  cropStates[''].originalSrc=finalSrc;
+  initCrop(finalSrc,'','cropWrap','cropOuter','zoomSlider');
 });
 
 document.getElementById('btnGuardar').onclick=async()=>{
@@ -1287,6 +1307,40 @@ function detectarContorno(src){
     };
     img.onerror=()=>resolve(null);
     img.src=src;
+  });
+}
+
+// ── RECORTE AUTOMÁTICO DEL MARGEN (pregunta antes de aplicarlo, como en album-bip) ──
+// Recorta la imagen al rectángulo {l,t,r,b} (fracciones 0..1) que detectó detectarContorno.
+function recortarPorCaja(src,caja){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        const W=img.naturalWidth,H=img.naturalHeight;
+        const sx=Math.max(0,Math.round(caja.l*W)),sy=Math.max(0,Math.round(caja.t*H));
+        const sw=Math.min(W-sx,Math.round((caja.r-caja.l)*W)),sh=Math.min(H-sy,Math.round((caja.b-caja.t)*H));
+        if(sw<20||sh<20){resolve(null);return;}
+        const c=document.createElement('canvas');c.width=sw;c.height=sh;
+        c.getContext('2d').drawImage(img,sx,sy,sw,sh,0,0,sw,sh);
+        // JPEG sigue siendo JPEG; otros formatos (PNG, etc.) quedan como PNG para no perder transparencia
+        const esJpeg=/^data:image\/jpe?g/i.test(src);
+        resolve(esJpeg?c.toDataURL('image/jpeg',0.95):c.toDataURL('image/png'));
+      }catch(e){resolve(null);}
+    };
+    img.onerror=()=>resolve(null);
+    img.src=src;
+  });
+}
+// Muestra el aviso con la vista previa. Devuelve una Promise<boolean>: true = usar recortada, false = usar original.
+function confirmarRecorteTazo(trimmedSrc){
+  document.getElementById('trimPreviewImg').src=trimmedSrc;
+  const overlay=document.getElementById('trimOverlay');
+  overlay.classList.add('activa');
+  return new Promise(resolve=>{
+    const cerrar=()=>overlay.classList.remove('activa');
+    document.getElementById('trimUseTrimmed').onclick=()=>{cerrar();resolve(true);};
+    document.getElementById('trimUseOriginal').onclick=()=>{cerrar();resolve(false);};
   });
 }
 
